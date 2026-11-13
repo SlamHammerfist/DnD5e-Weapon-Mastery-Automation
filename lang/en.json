@@ -1,0 +1,62 @@
+{
+  "DND5EWM": {
+    "CardSubtitle": "Weapon Mastery · {weapon}",
+    "NoTargets": "No targets were selected. Apply this mastery by hand.",
+    "Applied": "Applied",
+    "NoGM": "No GM is connected to apply this to {name}.",
+    "Failed": "Couldn't apply {mastery} to {name}. See the console for details.",
+    "Rule": {
+      "cleave": "Make a melee attack with this weapon against a second creature within 5 feet of the first and within your reach. On a hit it takes the weapon's damage without your ability modifier (unless the modifier is negative). Once per turn.",
+      "graze": "The attack missed, but the target takes damage equal to the ability modifier used for the attack, of the weapon's damage type.",
+      "nick": "When you make the extra attack from the Light property, you can make it as part of the Attack action instead of as a Bonus Action. Once per turn.",
+      "push": "Push the creature up to 10 feet straight away from you if it is Large or smaller.",
+      "sap": "The creature has Disadvantage on its next attack roll before the start of your next turn.",
+      "slow": "The creature's Speed is reduced by 10 feet until the start of your next turn. Multiple Slow hits don't reduce it by more than 10 feet.",
+      "topple": "The creature makes a Constitution saving throw (DC {dc}) or has the Prone condition.",
+      "vex": "You have Advantage on your next attack roll against this creature before the end of your next turn."
+    },
+    "Button": {
+      "cleave": "Choose Target",
+      "graze": "Deal {value} {type}",
+      "push": "Push 10 ft",
+      "sap": "Apply Sap",
+      "slow": "Apply Slow",
+      "topple": "Con Save DC {dc}",
+      "vex": "Apply Vex"
+    },
+    "GrazeNone": "No damage (modifier is {mod})",
+    "TooLarge": "Too large to push",
+    "PushBlocked": "Something blocks the push.",
+    "ToppleResult": {
+      "fail": "Failed the save and is Prone",
+      "pass": "Succeeded on the save"
+    },
+    "Effect": {
+      "sap": "Sapped",
+      "slow": "Slowed (Weapon Mastery)",
+      "vex": "Vexing {name}"
+    },
+    "Cleave": {
+      "Title": "Cleave: {weapon}",
+      "Hint": "Pick a second creature within 5 feet of {name} and within your reach ({reach} ft).",
+      "Attack": "Attack",
+      "Skip": "Skip",
+      "None": "Cleave: no other creature is within 5 feet of {name} and within your reach.",
+      "Used": "Cleave has already been used this turn."
+    },
+    "Settings": {
+      "autoApply": {
+        "name": "Apply Automatically",
+        "hint": "Apply Graze damage, Sap, Slow and Vex, and roll Topple saves, as soon as the chat card is posted. Push is always a button because it's optional."
+      },
+      "cleaveDialog": {
+        "name": "Cleave Target Dialog",
+        "hint": "Open a dialog to pick a second target after a Cleave hit."
+      },
+      "playerButtons": {
+        "name": "Players Can Use Buttons",
+        "hint": "Let the attacking player click the chat card buttons. When off, only the GM sees them."
+      }
+    }
+  }
+}
