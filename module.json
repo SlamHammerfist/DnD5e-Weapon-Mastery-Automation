@@ -9,7 +9,7 @@
   "bugs": "https://github.com/SlamHammerfist/DnD5e-Weapon-Mastery-Automation/issues",
   "changelog": "https://github.com/SlamHammerfist/DnD5e-Weapon-Mastery-Automation/blob/main/CHANGELOG.md",
   "compatibility": {
-    "minimum": "13",
+    "minimum": "14",
     "verified": "14"
   },
   "relationships": {
@@ -18,7 +18,7 @@
         "id": "dnd5e",
         "type": "system",
         "compatibility": {
-          "minimum": "5.0.0",
+          "minimum": "6.0.0",
           "verified": "6"
         }
       }

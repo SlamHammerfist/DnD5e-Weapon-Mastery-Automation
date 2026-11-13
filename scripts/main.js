@@ -7,7 +7,7 @@
  *  - A miss with Graze posts its card straight away.
  *  - dnd5e.rollDamageV2 posts the card for every other mastery, for the targets that were hit.
  *  - Cleave also opens a dialog to pick the second target and rolls that attack.
- *  - Sap, Slow and Vex are Active Effects that expire on the attacker's turn (or when used).
+ *  - Sap, Slow and Vex are real Active Effects (dnd5e rule changes) that expire on the attacker's turn or when used.
  */
 
 const MODULE_ID = "dnd5e-weapon-mastery-automation";
@@ -15,11 +15,11 @@ const QUERY = `${MODULE_ID}.action`;
 const PENDING_TTL = 10 * 60 * 1000;
 const PUSHABLE = new Set(["tiny", "sm", "med", "lg"]);
 const ON_HIT = ["cleave", "nick", "push", "sap", "slow", "topple", "vex"];
+/** Attack roll data key holding the uuids of the attacker's targeted tokens, for effect rule conditions. */
+const TARGETS_KEY = "targetTokens";
 
 /** Attacks waiting for their damage roll, keyed by activity uuid. */
 const pending = new Map();
-/** Sap/Vex effects to remove once the attack they modified has been rolled, keyed by activity uuid. */
-const toConsume = new Map();
 /** The activity uuid of a Cleave follow-up attack that's about to be rolled. */
 let cleaveNext = null;
 /** Combat turn keys in which each actor already used Cleave. */
@@ -143,17 +143,30 @@ async function run(action, data, uuid, name) {
 /*  Mastery effects                             */
 /* -------------------------------------------- */
 
+/**
+ * Build a regular dnd5e Active Effect. Its changes are ordinary effect changes, so they show on the
+ * effect sheet and can be edited, disabled or deleted like any other effect.
+ */
 function effectData(type, { name, img, source, expire, changes = [], extra = {} }) {
+  const stamp = combatStamp();
   return {
     name,
     img,
+    type: "base",
     origin: source,
     statuses: [`${MODULE_ID}-${type}`],
-    // v14 only shows the token icon for timed effects unless told otherwise. v13 ignores this field.
-    showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON?.ALWAYS,
-    changes,
-    flags: { [MODULE_ID]: { type, source, expire: combatStamp() ? { ...combatStamp(), when: expire } : null, ...extra } }
+    // Show the token icon even though the effect has no core duration (expiry is handled below).
+    showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON.ALWAYS,
+    system: { changes },
+    flags: { [MODULE_ID]: { type, source, expire: stamp ? { ...stamp, when: expire } : null, ...extra } }
   };
+}
+
+/** A dnd5e rule change granting advantage (1) or disadvantage (-1) on attack rolls. */
+function attackModeChange(value, conditions) {
+  const change = { key: "attack", type: "dnd5e.advantage", value: String(value) };
+  if ( conditions ) change.conditions = JSON.stringify(conditions);
+  return change;
 }
 
 /**
@@ -173,7 +186,8 @@ async function applyMastery(mastery, card, target) {
       }
       case "sap": {
         const data = effectData("sap", {
-          name: t("Effect.sap"), img: "icons/svg/downgrade.svg", source: attacker.actor, expire: "start"
+          name: t("Effect.sap"), img: "icons/svg/downgrade.svg", source: attacker.actor, expire: "start",
+          changes: [attackModeChange(-1)]
         });
         await run("createEffect", { actor: target.actor, data, replaceType: "sap" }, target.actor, target.name);
         return "done";
@@ -181,7 +195,7 @@ async function applyMastery(mastery, card, target) {
       case "slow": {
         const data = effectData("slow", {
           name: t("Effect.slow"), img: "icons/svg/net.svg", source: attacker.actor, expire: "start",
-          changes: [{ key: "system.attributes.movement.bonus", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: "-10" }]
+          changes: [{ key: "system.attributes.movement.bonus", type: "add", value: "-10" }]
         });
         await run("createEffect", { actor: target.actor, data, replaceType: "slow" }, target.actor, target.name);
         return "done";
@@ -189,7 +203,8 @@ async function applyMastery(mastery, card, target) {
       case "vex": {
         const data = effectData("vex", {
           name: t("Effect.vex", { name: target.name }), img: "icons/svg/target.svg", source: attacker.actor,
-          expire: "end", extra: { target: target.token, targetActor: target.actor }
+          expire: "end", extra: { target: target.token, targetActor: target.actor },
+          changes: [attackModeChange(1, { k: TARGETS_KEY, o: "has", v: target.token })]
         });
         await run("createEffect", { actor: attacker.actor, data }, attacker.actor, attacker.name);
         return "done";
@@ -417,27 +432,31 @@ function setTargets(token) {
 /*  Roll hooks                                  */
 /* -------------------------------------------- */
 
-/** Sap gives disadvantage, Vex gives advantage against its target. */
-function onPreRollAttack(config) {
-  const activity = config.subject;
-  const actor = activity?.actor;
-  const options = config.rolls?.[0]?.options;
-  if ( !actor || !options ) return;
+/**
+ * Add the targeted tokens to attack roll data, so effect rule conditions can check them.
+ * Vex uses this: its advantage rule only applies when `targetTokens` has the vexed token.
+ */
+function patchAttackRollData() {
+  const cls = CONFIG.DND5E.activityTypes?.attack?.documentClass;
+  if ( !cls ) return;
+  const original = cls.prototype.getRollData;
+  cls.prototype.getRollData = function(options = {}) {
+    const rollData = original.call(this, options);
+    if ( options.roll ) rollData[TARGETS_KEY] = [...game.user.targets].map(tk => tk.document.uuid);
+    return rollData;
+  };
+}
 
-  const used = [];
-  const targetUuids = new Set([...game.user.targets].map(tk => tk.document.uuid));
-  for ( const effect of actor.appliedEffects ?? actor.effects ) {
+/** Sap and Vex last for one attack roll: remove the ones that applied to this one. */
+function consumeEffects(activity) {
+  const actor = activity.actor;
+  const targets = new Set([...game.user.targets].map(tk => tk.document.uuid));
+  const used = actor.effects.filter(effect => {
+    if ( !effect.active ) return false;
     const type = effect.getFlag(MODULE_ID, "type");
-    if ( type === "sap" ) {
-      options.disadvantage = true;
-      used.push(effect.uuid);
-    } else if ( (type === "vex") && targetUuids.has(effect.getFlag(MODULE_ID, "target")) ) {
-      options.advantage = true;
-      used.push(effect.uuid);
-    }
-  }
-  if ( used.length ) toConsume.set(activity.uuid, used);
-  else toConsume.delete(activity.uuid);
+    return (type === "sap") || ((type === "vex") && targets.has(effect.getFlag(MODULE_ID, "target")));
+  }).map(e => e.uuid);
+  if ( used.length ) run("deleteEffects", { uuids: used }, actor.uuid, actor.name);
 }
 
 /** Record which targets were hit, consume Sap/Vex, and post Graze on a miss. */
@@ -445,12 +464,7 @@ async function onRollAttack(rolls, { subject: activity } = {}) {
   const roll = rolls?.[0];
   if ( !roll || !activity?.actor ) return;
 
-  const consumed = toConsume.get(activity.uuid);
-  if ( consumed ) {
-    toConsume.delete(activity.uuid);
-    const actor = activity.actor;
-    run("deleteEffects", { uuids: consumed }, actor.uuid, actor.name);
-  }
+  consumeEffects(activity);
 
   const isCleave = cleaveNext === activity.uuid;
   if ( isCleave ) cleaveNext = null;
@@ -565,7 +579,7 @@ Hooks.once("init", () => {
   };
 });
 
-Hooks.on("dnd5e.preRollAttackV2", onPreRollAttack);
+Hooks.once("setup", patchAttackRollData);
 Hooks.on("dnd5e.rollAttackV2", onRollAttack);
 Hooks.on("dnd5e.preRollDamageV2", onPreRollDamage);
 Hooks.on("dnd5e.rollDamageV2", onRollDamage);
