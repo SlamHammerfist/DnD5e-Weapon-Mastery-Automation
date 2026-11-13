@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 (2026-11-12)
+### Fixed
+- Cleave no longer offers allies as the second target. Tokens with the same disposition as the attacker are skipped.
+
 ## 1.0.0 (2026-11-12)
 ### Added
 - Rebuilt for Foundry VTT v14 and dnd5e 6.
