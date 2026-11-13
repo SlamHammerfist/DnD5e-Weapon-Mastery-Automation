@@ -41,7 +41,7 @@
       "Hint": "Pick a second creature within 5 feet of {name} and within your reach ({reach} ft).",
       "Attack": "Attack",
       "Skip": "Skip",
-      "None": "Cleave: no other creature is within 5 feet of {name} and within your reach.",
+      "None": "Cleave: no other enemy is within 5 feet of {name} and within your reach.",
       "Used": "Cleave has already been used this turn."
     },
     "Settings": {

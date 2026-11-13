@@ -382,6 +382,8 @@ async function openCleaveDialog(activity, first) {
   const reach = Math.max(0, Math.round(reachFt / gridFt) - 1);
   const candidates = canvas.tokens.placeables.filter(tk => {
     if ( !tk.actor || (tk === attacker) || (tk === first) || tk.document.hidden ) return false;
+    // Skip allies: tokens sharing the attacker's disposition.
+    if ( tk.document.disposition === attacker.document.disposition ) return false;
     if ( (tk.actor.system.attributes?.hp?.value ?? 1) <= 0 ) return false;
     return (gapSquares(tk, first) === 0) && (gapSquares(tk, attacker) <= reach);
   });
