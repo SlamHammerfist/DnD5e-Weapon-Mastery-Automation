@@ -504,6 +504,21 @@ function onPreRollDamage(config) {
   }
 }
 
+/**
+ * dnd5e creates the damage message before the hook fires, but Dice So Nice keeps it hidden until its
+ * animation finishes. Wait for that, so the mastery card shows up after the damage card.
+ */
+async function waitForDamageMessage(activity) {
+  if ( !game.dice3d?.waitFor3DAnimationByMessageID ) return;
+  const message = game.messages.contents.findLast(m => (m.type === "damage") && m.isAuthor
+    && (m.system?.activity?.uuid === activity.uuid));
+  if ( !message ) return;
+  const timeout = new Promise(resolve => setTimeout(resolve, 15000));
+  try {
+    await Promise.race([game.dice3d.waitFor3DAnimationByMessageID(message.id), timeout]);
+  } catch(err) { /* animation unavailable: post straight away */ }
+}
+
 /** Post the mastery card once damage is rolled for a hit. */
 async function onRollDamage(rolls, { subject: activity } = {}) {
   const entry = activity ? pending.get(activity.uuid) : null;
@@ -512,6 +527,7 @@ async function onRollDamage(rolls, { subject: activity } = {}) {
   if ( entry.isCleave || !ON_HIT.includes(entry.mastery) ) return;
   if ( Date.now() - entry.time > PENDING_TTL ) return;
 
+  await waitForDamageMessage(activity);
   const card = buildCard(entry.mastery, activity, entry.info, entry.hits);
   await postCard(card);
 
