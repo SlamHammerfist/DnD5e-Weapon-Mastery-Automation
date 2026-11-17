@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 (2026-11-17)
+### Fixed
+- The mastery chat card now posts after the damage card when Dice So Nice is animating the damage roll.
+
 ## 1.0.1 (2026-11-12)
 ### Fixed
 - Cleave no longer offers allies as the second target. Tokens with the same disposition as the attacker are skipped.
