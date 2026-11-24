@@ -38,6 +38,7 @@
     },
     "Cleave": {
       "Title": "Cleave: {weapon}",
+      "CardTitle": "{weapon} - Cleave",
       "Hint": "Pick a second creature within 5 feet of {name} and within your reach ({reach} ft).",
       "Attack": "Attack",
       "Skip": "Skip",

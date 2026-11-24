@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+### Changed
+- Mastery cards are only posted when the mastery applies. Cleave needs a second enemy within 5 ft of the first target and within your reach; Push skips creatures that are too large; Topple skips creatures that are already Prone; Graze skips a modifier of 0 or less.
+
+### Fixed
+- The Cleave follow-up attack now posts a regular activity card with Attack and Damage buttons, so its damage can be rolled. It consumes nothing, and its damage still drops a positive ability modifier.
+
 ## 1.0.2 (2026-11-17)
 ### Fixed
 - The mastery chat card now posts after the damage card when Dice So Nice is animating the damage roll.

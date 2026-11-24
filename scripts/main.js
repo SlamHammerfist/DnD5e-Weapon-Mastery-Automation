@@ -20,8 +20,6 @@ const TARGETS_KEY = "targetTokens";
 
 /** Attacks waiting for their damage roll, keyed by activity uuid. */
 const pending = new Map();
-/** The activity uuid of a Cleave follow-up attack that's about to be rolled. */
-let cleaveNext = null;
 /** Combat turn keys in which each actor already used Cleave. */
 const cleaveUsed = new Map();
 
@@ -307,6 +305,39 @@ function cardContent(card) {
   </div>`;
 }
 
+/**
+ * The targets the mastery can actually do something to.
+ * With no targets selected at all the card is a reminder, so that case is left alone.
+ */
+function applicableTargets(card, activity) {
+  const { mastery, targets } = card;
+  if ( !targets.length ) return targets;
+  switch ( mastery ) {
+    case "graze": return card.graze.value > 0 ? targets : [];
+    case "push": return targets.filter(tg => tg.pushable);
+    case "topple": return targets.filter(tg => !fromUuidSync(tg.actor)?.statuses?.has("prone"));
+    case "cleave": {
+      if ( activity.attack?.type?.value === "ranged" ) return [];
+      if ( cleaveUsedThisTurn(activity.actor) ) return [];
+      const attacker = tokenFor(activity.actor);
+      if ( !attacker ) return [];
+      return targets.filter(tg => {
+        const first = fromUuidSync(tg.token)?.object;
+        return first && cleaveCandidates(activity, attacker, first).length;
+      });
+    }
+    default: return targets;
+  }
+}
+
+/** Post the card only when the mastery applies to at least one target. */
+async function postIfApplicable(card, activity) {
+  const hadTargets = card.targets.length > 0;
+  card.targets = applicableTargets(card, activity);
+  if ( hadTargets && !card.targets.length ) return null;
+  return postCard(card);
+}
+
 async function postCard(card) {
   const actor = fromUuidSync(card.attacker.actor);
   const message = await ChatMessage.create({
@@ -366,27 +397,41 @@ function buildCard(mastery, activity, info, targets) {
 /*  Cleave                                      */
 /* -------------------------------------------- */
 
-async function openCleaveDialog(activity, first) {
-  const actor = activity.actor;
-  const attacker = tokenFor(actor);
-  if ( !attacker ) return;
+function cleaveReachFt(activity) {
+  return activity.item.system.properties?.has("rch") ? 10 : 5;
+}
 
-  const key = turnKey();
-  if ( key && (cleaveUsed.get(actor.uuid) === key) ) {
-    ui.notifications.info(t("Cleave.Used"));
-    return;
-  }
-
+/** Enemies within 5 ft of the first target and within the attacker's reach. */
+function cleaveCandidates(activity, attacker, first) {
   const gridFt = canvas.scene.grid.distance || 5;
-  const reachFt = activity.item.system.properties?.has("rch") ? 10 : 5;
-  const reach = Math.max(0, Math.round(reachFt / gridFt) - 1);
-  const candidates = canvas.tokens.placeables.filter(tk => {
+  const reach = Math.max(0, Math.round(cleaveReachFt(activity) / gridFt) - 1);
+  return canvas.tokens.placeables.filter(tk => {
     if ( !tk.actor || (tk === attacker) || (tk === first) || tk.document.hidden ) return false;
     // Skip allies: tokens sharing the attacker's disposition.
     if ( tk.document.disposition === attacker.document.disposition ) return false;
     if ( (tk.actor.system.attributes?.hp?.value ?? 1) <= 0 ) return false;
     return (gapSquares(tk, first) === 0) && (gapSquares(tk, attacker) <= reach);
   });
+}
+
+function cleaveUsedThisTurn(actor) {
+  const key = turnKey();
+  return !!key && (cleaveUsed.get(actor.uuid) === key);
+}
+
+async function openCleaveDialog(activity, first) {
+  const actor = activity.actor;
+  const attacker = tokenFor(actor);
+  if ( !attacker ) return;
+
+  const key = turnKey();
+  if ( cleaveUsedThisTurn(actor) ) {
+    ui.notifications.info(t("Cleave.Used"));
+    return;
+  }
+
+  const reachFt = cleaveReachFt(activity);
+  const candidates = cleaveCandidates(activity, attacker, first);
 
   if ( !candidates.length ) {
     ui.notifications.info(t("Cleave.None", { name: first.name }));
@@ -417,12 +462,20 @@ async function openCleaveDialog(activity, first) {
 
   if ( key ) cleaveUsed.set(actor.uuid, key);
   setTargets(token);
-  cleaveNext = activity.uuid;
-  try {
-    await activity.rollAttack({});
-  } finally {
-    if ( cleaveNext === activity.uuid ) cleaveNext = null;
-  }
+
+  // Post a regular activity card with Attack and Damage buttons. It's part of the same Attack action, so it
+  // consumes nothing. dnd5e opens the attack roll from it straight away, as for any weapon.
+  await activity.use({ consume: false }, { configure: false }, {
+    data: {
+      title: t("Cleave.CardTitle", { weapon: activity.item.name }),
+      flags: { [MODULE_ID]: { cleave: true } }
+    }
+  });
+}
+
+/** Whether a chat message is a Cleave follow-up activity card. */
+function isCleaveCard(messageId) {
+  return !!messageId && !!game.messages.get(messageId)?.getFlag(MODULE_ID, "cleave");
 }
 
 function setTargets(token) {
@@ -468,8 +521,7 @@ async function onRollAttack(rolls, { subject: activity } = {}) {
 
   consumeEffects(activity);
 
-  const isCleave = cleaveNext === activity.uuid;
-  if ( isCleave ) cleaveNext = null;
+  const isCleave = isCleaveCard(roll.options.originatingMessage ?? roll.parent?.system?.origin?.id);
   const mastery = isCleave ? null : roll.options.mastery;
   if ( !mastery && !isCleave ) {
     pending.delete(activity.uuid);
@@ -488,7 +540,7 @@ async function onRollAttack(rolls, { subject: activity } = {}) {
   }
 
   const info = { ability: roll.options.ability };
-  if ( (mastery === "graze") && misses.length ) await postCard(buildCard("graze", activity, info, misses));
+  if ( (mastery === "graze") && misses.length ) await postIfApplicable(buildCard("graze", activity, info, misses), activity);
 
   if ( (isCleave || (mastery !== "graze")) && (hits.length || !targets.length) ) {
     pending.set(activity.uuid, { mastery, isCleave, info, hits, time: Date.now() });
@@ -497,8 +549,10 @@ async function onRollAttack(rolls, { subject: activity } = {}) {
 
 /** Cleave's follow-up attack doesn't add a positive ability modifier to its damage. */
 function onPreRollDamage(config) {
+  const messageId = config.event?.target?.closest?.("[data-message-id]")?.dataset.messageId;
   const entry = pending.get(config.subject?.uuid);
-  if ( !entry?.isCleave || (Date.now() - entry.time > PENDING_TTL) ) return;
+  const fromCard = isCleaveCard(messageId);
+  if ( !fromCard && (!entry?.isCleave || (Date.now() - entry.time > PENDING_TTL)) ) return;
   for ( const roll of config.rolls ?? [] ) {
     if ( roll.data?.mod > 0 ) roll.data.mod = 0;
   }
@@ -529,11 +583,11 @@ async function onRollDamage(rolls, { subject: activity } = {}) {
 
   await waitForDamageMessage(activity);
   const card = buildCard(entry.mastery, activity, entry.info, entry.hits);
-  await postCard(card);
+  const message = await postIfApplicable(card, activity);
+  if ( !message ) return;
 
-  if ( (entry.mastery === "cleave") && setting("cleaveDialog") && entry.hits.length
-    && (activity.attack?.type?.value !== "ranged") ) {
-    const first = fromUuidSync(entry.hits[0].token)?.object;
+  if ( (entry.mastery === "cleave") && setting("cleaveDialog") && card.targets.length ) {
+    const first = fromUuidSync(card.targets[0].token)?.object;
     if ( first ) await openCleaveDialog(activity, first);
   }
 }

@@ -10,7 +10,7 @@ Graze posts its card right after a missed attack, since it doesn't need a damage
 
 | Mastery | When | What the module does |
 | --- | --- | --- |
-| Cleave | Hit + damage | Opens a dialog listing creatures within 5 ft of the first target and within your reach. Pick one to roll the follow-up attack. Its damage drops a positive ability modifier. Once per turn in combat. |
+| Cleave | Hit + damage | Opens a dialog listing creatures within 5 ft of the first target and within your reach. Pick one to post a weapon card with Attack and Damage buttons for the follow-up attack (the attack roll opens straight away). Its damage drops a positive ability modifier. Once per turn in combat. |
 | Graze | Miss | Button deals damage equal to the attack's ability modifier, of the weapon's damage type. |
 | Nick | Hit + damage | Reminder card only. |
 | Push | Hit + damage | Button pushes the target 10 ft straight away from you, if it's Large or smaller. Stops short at walls. |
@@ -45,6 +45,7 @@ Outside combat they last until they're used or removed by hand.
 ## Notes
 
 - Targets you don't own (usually NPCs) are changed by the GM's client, so a GM must be logged in.
+- A card is only posted when the mastery can do something to a target you hit (or missed, for Graze). Cleave needs another enemy within 5 ft of the first target and within your reach, and isn't offered on ranged attacks or after you've cleaved this turn. Push skips targets larger than Large, Topple skips targets that are already Prone, and Graze skips a modifier of 0 or less.
 - Pick your targets before you attack. With no targets the card is still posted as a reminder.
 - Choosing a mastery in the attack dialog (for example with a feature that grants extra masteries) is respected.
 
