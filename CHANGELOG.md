@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-11-23)
 ### Changed
 - Mastery cards are only posted when the mastery applies. Cleave needs a second enemy within 5 ft of the first target and within your reach; Push skips creatures that are too large; Topple skips creatures that are already Prone; Graze skips a modifier of 0 or less.
 
